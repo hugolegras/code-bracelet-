@@ -1,1 +1,46 @@
 ici on déposera le code pour notre bracelet 
+class StrategyPente(IStrategy):
+    def __init__(self, fenetre_lissage=20, fenetre_pente=10, name="Pente"):
+        super().__init__()
+        self.fenetre_lissage = fenetre_lissage
+        self.fenetre_pente = fenetre_pente
+        self.name = name
+
+    def calculer_pente(self, prix):
+        # Utiliser la méthode des moindres carrés pour calculer la pente
+        x = np.arange(len(prix)) #indices des prix
+        y = prix
+        pente = np.polyfit(x, y, 1)[0] #Regression linéaire, premier coefficient du polynôme
+        return pente
+
+    def getAction(self, game, unityPrice, date, unityData=None, debug=False):
+        nb_jour = min(game.clock, self.fenetre_lissage)
+ 
+        # Lisser les prix en calculant la moyenne mobile sur chaque sous-fenêtre de la fenêtre de lissage
+        prix_lisses = [np.mean(game.prices[i : i+nb_jour]) for i in range(game.clock-nb_jour+1, game.clock+1)]
+
+        # Vérifier si nous avons suffisamment de données pour la fenêtre de pente
+        if len(prix_lisses) < self.fenetre_pente:
+            return Game.STILL, 0
+
+        # Calculer la pente de la courbe des prix lissés
+        pente = self.calculer_pente(prix_lisses[-self.fenetre_pente:]) #Tendance la plus récente
+
+
+
+        if game.clock+1 < len(game.prices): #Vérification de la fin du jeu
+            if pente > 0: # Si la pente est positive, la courbe est croissante, donc nous achetons
+                return (Game.BUY, game.account.cash/unityPrice)
+
+        # Si la pente est négative, la courbe est décroissante, donc nous vendons
+            elif pente < 0:
+                return (Game.SELL, game.account.security)
+
+        # Sinon, nous ne faisons rien
+            else:
+                return Game.STILL, 0
+        else :
+            return(Game.SELL, game.account.security)
+
+    def getName(self):
+        return self.name
